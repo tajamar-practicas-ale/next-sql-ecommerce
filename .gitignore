@@ -1,0 +1,5 @@
+backend/venv/
+backend/config/__pycache__
+backend/models/__pycache__
+backend/api/__pycache__
+backend/database/__pycache__
