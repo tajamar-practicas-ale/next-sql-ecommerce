@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from models.Product import Product
+
 
 DB_PATH = Path(__file__).parent.parent / "ecommerce.db"
 
@@ -27,6 +27,8 @@ class DBHandler:
         return self.cursor.lastrowid
 
     def initialize_products(self):
+        from models.Product import Product
+
         if Product.query.count() == 0:
             productos = [
                 Product(name="Teclado Retro Mecánico", description="Teclado mecánico con estilo retro y switches azules.", price=79.99, stock=20, category="Periféricos", image_name="teclado-retro.jpg", is_active=True),

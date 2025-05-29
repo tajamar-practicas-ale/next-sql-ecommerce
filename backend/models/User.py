@@ -1,9 +1,19 @@
 import re
 import hashlib
 import datetime
-from database.db_handler import DBHandler
+from flask_sqlalchemy import SQLAlchemy
 
-class User:
+db = SQLAlchemy()
+
+class User(db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
     def __init__(self, name, email, password):
         if not self.is_valid_email(email):
             raise ValueError("Email inválido.")
@@ -12,11 +22,9 @@ class User:
         if not (2 <= len(name) <= 50):
             raise ValueError("El nombre debe tener entre 2 y 50 caracteres.")
 
-        self.id = None
         self.name = name
         self.email = email.lower()
         self.password_hash = self.hash_password(password)
-        self.created_at = datetime.datetime.utcnow()
 
     @staticmethod
     def hash_password(password):
@@ -30,7 +38,7 @@ class User:
             "id": self.id,
             "name": self.name,
             "email": self.email,
-            "created_at": self.created_at.isoformat()
+            "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
     @staticmethod
@@ -39,28 +47,12 @@ class User:
         return re.match(pattern, email) is not None
 
     def save(self):
-        db = DBHandler()
-        # Verificar email único
-        existing = db.query("SELECT * FROM users WHERE email = ?", (self.email,), one=True)
+        existing = User.query.filter_by(email=self.email).first()
         if existing:
-            db.close()
             raise ValueError("El email ya está registrado.")
-        # Insertar usuario
-        self.id = db.execute(
-            "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-            (self.name, self.email, self.password_hash)
-        )
-        db.close()
+        db.session.add(self)
+        db.session.commit()
 
     @staticmethod
     def find_by_email(email):
-        db = DBHandler()
-        row = db.query("SELECT * FROM users WHERE email = ?", (email,), one=True)
-        db.close()
-        if not row:
-            return None
-        user = User(row["name"], row["email"], "")
-        user.id = row["id"]
-        user.password_hash = row["password"]
-        user.created_at = row["created_at"]
-        return user
+        return User.query.filter_by(email=email.lower()).first()

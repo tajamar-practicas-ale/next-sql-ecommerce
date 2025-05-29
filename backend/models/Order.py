@@ -1,29 +1,72 @@
 import datetime
-from database.db_handler import DBHandler
-from models.Product import Product
+import json
+from flask_sqlalchemy import SQLAlchemy
+from models.product import Product
 
-class Order:
+db = SQLAlchemy()
+
+class Order(db.Model):
+    __tablename__ = 'orders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    items_json = db.Column(db.Text, nullable=False, default='[]')  # Guardar lista de items serializados
+    total = db.Column(db.Float, nullable=False, default=0.0)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    shipping_address = db.Column(db.String(255), nullable=False)
+
     VALID_STATUSES = {"pending", "confirmed", "shipped", "delivered", "cancelled"}
 
     def __init__(self, user_id, shipping_address):
-        self.id = None
         self.user_id = user_id
-        self.items = []  # Lista de dicts: {"product": Product, "quantity": int}
+        self.items = []  # Lista de dicts {"product": Product, "quantity": int}
         self.total = 0.0
         self.status = "pending"
         self.created_at = datetime.datetime.utcnow()
         self.shipping_address = shipping_address
+        self.items_json = json.dumps([])
+
+    @property
+    def items(self):
+        raw_items = json.loads(self.items_json)
+        # Reconstruir productos
+        result = []
+        for item in raw_items:
+            product = Product.find_by_id(item['product_id'])
+            if product:
+                result.append({"product": product, "quantity": item['quantity']})
+        return result
+
+    @items.setter
+    def items(self, value):
+        # Espera lista de dicts con "product" y "quantity"
+        raw_items = []
+        for item in value:
+            raw_items.append({"product_id": item["product"].id, "quantity": item["quantity"]})
+        self.items_json = json.dumps(raw_items)
 
     def add_item(self, product, quantity):
         if quantity <= 0:
             raise ValueError("La cantidad debe ser mayor que cero.")
         if quantity > product.stock:
             raise ValueError("No hay stock suficiente para este producto.")
-        self.items.append({"product": product, "quantity": quantity})
+        current_items = self.items
+        # Añadir o actualizar cantidad
+        found = False
+        for item in current_items:
+            if item["product"].id == product.id:
+                item["quantity"] += quantity
+                found = True
+                break
+        if not found:
+            current_items.append({"product": product, "quantity": quantity})
+        self.items = current_items
         self.calculate_total()
 
     def remove_item(self, product_id):
-        self.items = [item for item in self.items if item["product"].id != product_id]
+        current_items = [item for item in self.items if item["product"].id != product_id]
+        self.items = current_items
         self.calculate_total()
 
     def calculate_total(self):
@@ -58,43 +101,14 @@ class Order:
             ],
             "total": self.total,
             "status": self.status,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
             "shipping_address": self.shipping_address
         }
 
     def save(self):
-        db = DBHandler()
-        if self.id is None:
-            self.id = db.execute(
-                "INSERT INTO orders (user_id, total, status, created_at, shipping_address) VALUES (?, ?, ?, ?, ?)",
-                (self.user_id, self.total, self.status, self.created_at, self.shipping_address)
-            )
-            for item in self.items:
-                db.execute(
-                    "INSERT INTO order_items (order_id, product_id, quantity) VALUES (?, ?, ?)",
-                    (self.id, item["product"].id, item["quantity"])
-                )
-        else:
-            # Actualizar orden y sus items si fuera necesario
-            pass
-        db.close()
+        db.session.add(self)
+        db.session.commit()
 
     @staticmethod
     def find_by_id(order_id):
-        db = DBHandler()
-        row = db.query("SELECT * FROM orders WHERE id = ?", (order_id,), one=True)
-        if not row:
-            db.close()
-            return None
-        order = Order(row["user_id"], row["shipping_address"])
-        order.id = row["id"]
-        order.total = row["total"]
-        order.status = row["status"]
-        order.created_at = row["created_at"]
-        items_rows = db.query("SELECT * FROM order_items WHERE order_id = ?", (order.id,))
-        for item_row in items_rows:
-            product = Product.find_by_id(item_row["product_id"])
-            if product:
-                order.items.append({"product": product, "quantity": item_row["quantity"]})
-        db.close()
-        return order
+        return Order.query.filter_by(id=order_id).first()
