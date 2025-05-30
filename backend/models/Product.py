@@ -1,7 +1,6 @@
 import re
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+# from flask_sqlalchemy import SQLAlchemy
+from models import db
 
 class Product(db.Model):
     __tablename__ = 'products'

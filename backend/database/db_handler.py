@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from models import db
 
 
 DB_PATH = Path(__file__).parent.parent / "ecommerce.db"

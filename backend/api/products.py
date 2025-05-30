@@ -14,3 +14,4 @@ def get_product(product_id):
     if product:
         return jsonify(product.to_dict())
     return jsonify({"error": "Producto no encontrado"}), 404
+    

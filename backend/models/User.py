@@ -1,9 +1,7 @@
 import re
-import hashlib
+from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+from models import db
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -24,14 +22,14 @@ class User(db.Model):
 
         self.name = name
         self.email = email.lower()
-        self.password_hash = self.hash_password(password)
+        self.password_hash = generate_password_hash(password)
 
-    @staticmethod
-    def hash_password(password):
-        return hashlib.sha256(password.encode('utf-8')).hexdigest()
+    # @staticmethod
+    # def hash_password(password):
+    #     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
     def verify_password(self, password):
-        return self.password_hash == self.hash_password(password)
+        return check_password_hash(self.password_hash, password)
 
     def to_dict(self):
         return {

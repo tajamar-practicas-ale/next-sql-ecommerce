@@ -5,7 +5,7 @@ import re
 from datetime import timedelta
 from models.User import User
 
-auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+auth_bp = Blueprint('auth', __name__)
 
 email_regex = re.compile(r"^[\w\.-]+@[\w\.-]+\.\w+$")
 
@@ -62,13 +62,18 @@ def login():
     if not user or not user.verify_password(password):
         return jsonify({"error": "Credenciales incorrectas"}), 401
 
-    access_token = create_access_token(identity={"id": user.id, "name": user.name, "email": user.email}, expires_delta=timedelta(hours=24))
-    resp = jsonify({"user": user.to_dict(), "access_token": access_token})
+    # access_token = create_access_token(identity={"id": user.id, "name": user.name, "email": user.email}, expires_delta=timedelta(hours=24))
+    # el identity debe ser una cadena
+    access_token = create_access_token(identity=user.email, expires_delta=timedelta(hours=24))
 
-    # Configurar cookie segura y httpOnly
-    set_access_cookies(resp, access_token, max_age=86400, httponly=True, secure=True)
+    # resp = jsonify({"user": user.to_dict(), "access_token": access_token})
 
-    return resp, 200
+    #set_access_cookies(resp, access_token)
+
+    return jsonify({
+        "user": user.to_dict(),
+        "access_token": access_token
+    }), 200
 
 
 @auth_bp.route('/logout', methods=['POST'])
